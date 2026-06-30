@@ -55,7 +55,7 @@ jobs:
         run: python scripts/fetch_sqlite.py
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.23.4
+        uses: pypa/cibuildwheel@v2.21
         env:
           CIBW_ARCHS: ${{ matrix.archs }}
 
@@ -64,68 +64,10 @@ jobs:
           name: wheels-${{ matrix.name }}
           path: wheelhouse/*.whl
 
-  # 32-bit Raspberry Pi OS (Debian armv7l). No native runner exists, so this
-  # builds under QEMU emulation -- slower, hence its own job. 64-bit Pi OS is
-  # already covered by the linux-aarch64 wheel above.
-  #
-  # Raspberry Pi OS is glibc/Debian, so we want the manylinux_2_31 (Debian-based)
-  # armv7l image. For armv7l, cibuildwheel only auto-builds the *musllinux* wheel
-  # unless the manylinux image is named, so we set CIBW_MANYLINUX_ARMV7L_IMAGE
-  # and skip musllinux (the musl/Alpine 32-bit-ARM wheel is niche and would
-  # double this slow emulated build).
-  linux-armv7l:
-    name: Wheels linux-armv7l (emulated)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-      - name: Fetch & verify SQLite amalgamation
-        run: python scripts/fetch_sqlite.py
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.23.4
-        env:
-          CIBW_ARCHS: armv7l
-          CIBW_MANYLINUX_ARMV7L_IMAGE: manylinux_2_31
-          CIBW_SKIP: "*-musllinux*"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-linux-armv7l
-          path: wheelhouse/*.whl
-
-  # Pyodide / WebAssembly (wasm32). A single wheel for the Python + Emscripten
-  # version Pyodide bundles. Selected directly via CIBW_PLATFORM (not gated by
-  # CIBW_ENABLE). Tests must run through `python -m` under Node.
-  pyodide:
-    name: Wheels pyodide-wasm32
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Fetch & verify SQLite amalgamation
-        run: python scripts/fetch_sqlite.py
-      - name: Build Pyodide wheel
-        uses: pypa/cibuildwheel@v2.23.4
-        env:
-          CIBW_PLATFORM: pyodide
-          CIBW_TEST_COMMAND: "python -m pytest {project}/tests"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-pyodide
-          path: wheelhouse/*.whl
-
-  # PyPI publishing is intentionally disabled for now. On a vX.Y.Z tag we just
-  # collect the built sdist + wheels and attach them to the GitHub Release.
+  # On a vX.Y.Z tag, attach the sdist + all wheels to the GitHub Release.
   release:
     name: Attach artifacts to GitHub Release
-    needs: [sdist, wheels, linux-armv7l, pyodide]
+    needs: [sdist, wheels]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -141,3 +83,26 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+
+  # Publish to PyPI via Trusted Publishing (OIDC) on a vX.Y.Z tag. This requires
+  # a one-time setup on PyPI: register this repo+workflow as a trusted publisher
+  # for the "sqlite-quote" project, and (optionally) create a "pypi" environment
+  # in the repo settings. Until that exists, this job is expected to fail at the
+  # publish step -- configure it, then re-run just this job.
+  pypi-publish:
+    name: Publish to PyPI
+    needs: [sdist, wheels]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: pypi
+    permissions:
+      id-token: write  # OIDC token for Trusted Publishing -- no API token needed
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Collect distributions
+        # PyPI accepts only sdists + wheels; nothing else lands in dist/ here.
+        run: ls -l dist
+      - uses: pypa/gh-action-pypi-publish@release/v1

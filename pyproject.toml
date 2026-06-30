@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sqlite-quote"
-version = "0.1.0"
+version = "0.1.1"
 description = "Safely quote SQL identifiers and string literals using SQLite's own sqlite3_mprintf (%w / %Q / %q)."
 readme = "README.md"
 requires-python = ">=3.9"
