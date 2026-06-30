@@ -64,11 +64,63 @@ jobs:
           name: wheels-${{ matrix.name }}
           path: wheelhouse/*.whl
 
+  # 32-bit Raspberry Pi OS (Debian armv7l). No native runner exists, so this
+  # builds under QEMU emulation -- slower, hence its own job. 64-bit Pi OS is
+  # already covered by the linux-aarch64 wheel above. We build manylinux only
+  # (Raspberry Pi OS is glibc); musllinux armv7l is niche and doubles the slow
+  # emulated build, so it is skipped here.
+  linux-armv7l:
+    name: Wheels linux-armv7l (emulated)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Fetch & verify SQLite amalgamation
+        run: python scripts/fetch_sqlite.py
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21
+        env:
+          CIBW_ARCHS: armv7l
+          CIBW_SKIP: "*-musllinux*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-armv7l
+          path: wheelhouse/*.whl
+
+  # Pyodide / WebAssembly (wasm32). A single wheel for the Python + Emscripten
+  # version Pyodide bundles. Selected directly via CIBW_PLATFORM (not gated by
+  # CIBW_ENABLE). Tests must run through `python -m` under Node.
+  pyodide:
+    name: Wheels pyodide-wasm32
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch & verify SQLite amalgamation
+        run: python scripts/fetch_sqlite.py
+      - name: Build Pyodide wheel
+        uses: pypa/cibuildwheel@v2.21
+        env:
+          CIBW_PLATFORM: pyodide
+          CIBW_TEST_COMMAND: "python -m pytest {project}/tests"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-pyodide
+          path: wheelhouse/*.whl
+
   # PyPI publishing is intentionally disabled for now. On a vX.Y.Z tag we just
   # collect the built sdist + wheels and attach them to the GitHub Release.
   release:
     name: Attach artifacts to GitHub Release
-    needs: [sdist, wheels]
+    needs: [sdist, wheels, linux-armv7l, pyodide]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:

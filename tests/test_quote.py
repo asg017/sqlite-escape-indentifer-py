@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
-
 import pytest
 
 import sqlite_quote
@@ -13,6 +11,15 @@ from sqlite_quote import (
     quote_string,
     quote_string_bare,
 )
+
+try:
+    import sqlite3
+except ImportError:  # e.g. some Pyodide/wasm builds without the sqlite3 stdlib
+    sqlite3 = None
+
+# Tests that cross-check against a live SQLite driver are skipped where the
+# stdlib sqlite3 module is unavailable; the core quoting tests still run.
+needs_driver = pytest.mark.skipif(sqlite3 is None, reason="stdlib sqlite3 unavailable")
 
 
 def _sqlite_quote_via_driver(fmt: str, value):
@@ -43,11 +50,13 @@ def test_quote_identifier(name, expected):
     assert quote_identifier(name) == expected
 
 
+@needs_driver
 def test_quote_identifier_matches_driver():
     for name in ["plain", 'has"quote', "spaces here", "select"]:
         assert quote_identifier(name) == _sqlite_quote_via_driver('"%w"', name)
 
 
+@needs_driver
 def test_quoted_identifier_round_trips_through_real_sqlite():
     weird = 'tab"le; DROP'
     con = sqlite3.connect(":memory:")
@@ -76,6 +85,7 @@ def test_quote_string(value, expected):
     assert quote_string(value) == expected
 
 
+@needs_driver
 def test_quote_string_literal_evaluates_in_sqlite():
     value = "it's a \"test\" -- ;"
     con = sqlite3.connect(":memory:")
