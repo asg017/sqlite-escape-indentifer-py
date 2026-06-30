@@ -1,0 +1,84 @@
+name: Build wheels
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Fetch & verify SQLite amalgamation
+        run: uv run --no-project python scripts/fetch_sqlite.py
+      - name: Build sdist
+        run: uv build --sdist
+      - name: Verify sdist builds & tests offline
+        run: |
+          uv venv /tmp/sd
+          uv pip install --python /tmp/sd dist/*.tar.gz pytest
+          # Install in a throwaway dir so tests run against the installed pkg.
+          /tmp/sd/bin/python -m pytest tests -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  wheels:
+    name: Wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      # cibuildwheel mounts the project dir into the build container, so a
+      # host-side fetch makes vendor/ available to every platform (incl. the
+      # manylinux container). This keeps the build offline & reproducible.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Fetch & verify SQLite amalgamation
+        run: python scripts/fetch_sqlite.py
+
+      - name: Set up QEMU (Linux aarch64 emulation)
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+
+  # PyPI publishing is intentionally disabled for now. On a vX.Y.Z tag we just
+  # collect the built sdist + wheels and attach them to the GitHub Release.
+  release:
+    name: Attach artifacts to GitHub Release
+    needs: [sdist, wheels]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write  # create/update the release and upload assets
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -lR dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

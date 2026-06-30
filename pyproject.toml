@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sqlite-quote"
+version = "0.1.0"
+description = "Safely quote SQL identifiers and string literals using SQLite's own sqlite3_mprintf (%w / %Q / %q)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "Alex Garcia" }]
+keywords = ["sqlite", "sql", "quote", "escape", "identifier", "injection", "mprintf"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Topic :: Database",
+    "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/asg017/sqlite-escape-indentifer-py"
+Issues = "https://github.com/asg017/sqlite-escape-indentifer-py/issues"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+license-files = ["LICENSE"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sqlite_quote = ["py.typed", "*.pyi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.cibuildwheel]
+# PyPy uses a different C API surface; we target CPython only.
+skip = ["pp*", "*-musllinux_i686"]
+build-frontend = "build"
+test-requires = ["pytest"]
+test-command = "pytest {project}/tests"
+
+[tool.cibuildwheel.linux]
+# Build for the two mainstream Linux arches (aarch64 runs under QEMU in CI).
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.macos]
+archs = ["universal2"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]

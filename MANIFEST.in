@@ -1,0 +1,19 @@
+# Ship everything needed to build a wheel from the sdist without network access.
+include LICENSE
+include README.md
+include setup.py
+include pyproject.toml
+include scripts/fetch_sqlite.py
+
+# Vendored SQLite amalgamation (populated by scripts/fetch_sqlite.py).
+include vendor/sqlite3.c
+include vendor/sqlite3.h
+include vendor/.sqlite-version
+
+# C source + typing metadata.
+include src/sqlite_quote/_quote.c
+include src/sqlite_quote/py.typed
+include src/sqlite_quote/*.pyi
+
+# Tests (handy for `pip install` + run).
+recursive-include tests *.py

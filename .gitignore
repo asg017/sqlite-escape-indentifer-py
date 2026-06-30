@@ -1,0 +1,16 @@
+# Vendored SQLite amalgamation — fetched on demand, not committed.
+/vendor/
+
+# Build artifacts
+/build/
+/dist/
+/wheelhouse/
+*.so
+*.pyd
+*.egg-info/
+__pycache__/
+.pytest_cache/
+
+# uv / venv
+/.venv/
+uv.lock
