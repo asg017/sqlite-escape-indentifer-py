@@ -30,12 +30,18 @@ jobs:
           path: dist/*.tar.gz
 
   wheels:
-    name: Wheels on ${{ matrix.os }}
+    name: Wheels ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # Each arch builds natively on its own runner -- no QEMU. Public repos
+          # get free Linux arm64 runners (ubuntu-24.04-arm).
+          - { name: linux-x86_64, os: ubuntu-latest, archs: x86_64 }
+          - { name: linux-aarch64, os: ubuntu-24.04-arm, archs: aarch64 }
+          - { name: macos-universal2, os: macos-latest, archs: universal2 }
+          - { name: windows-amd64, os: windows-latest, archs: AMD64 }
     steps:
       - uses: actions/checkout@v4
 
@@ -48,18 +54,14 @@ jobs:
       - name: Fetch & verify SQLite amalgamation
         run: python scripts/fetch_sqlite.py
 
-      - name: Set up QEMU (Linux aarch64 emulation)
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21
+        env:
+          CIBW_ARCHS: ${{ matrix.archs }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-${{ matrix.name }}
           path: wheelhouse/*.whl
 
   # PyPI publishing is intentionally disabled for now. On a vX.Y.Z tag we just

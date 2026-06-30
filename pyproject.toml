@@ -46,13 +46,6 @@ skip = ["pp*", "*-musllinux_i686"]
 build-frontend = "build"
 test-requires = ["pytest"]
 test-command = "pytest {project}/tests"
-
-[tool.cibuildwheel.linux]
-# Build for the two mainstream Linux arches (aarch64 runs under QEMU in CI).
-archs = ["x86_64", "aarch64"]
-
-[tool.cibuildwheel.macos]
-archs = ["universal2"]
-
-[tool.cibuildwheel.windows]
-archs = ["AMD64"]
+# Arch is driven per-job from the CI matrix (CIBW_ARCHS) so native x86_64 and
+# native aarch64 build on separate runners. Locally, cibuildwheel defaults to
+# the host arch.
