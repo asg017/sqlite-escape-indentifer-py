@@ -55,7 +55,7 @@ jobs:
         run: python scripts/fetch_sqlite.py
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21
+        uses: pypa/cibuildwheel@v2.23.4
         env:
           CIBW_ARCHS: ${{ matrix.archs }}
 
@@ -66,9 +66,13 @@ jobs:
 
   # 32-bit Raspberry Pi OS (Debian armv7l). No native runner exists, so this
   # builds under QEMU emulation -- slower, hence its own job. 64-bit Pi OS is
-  # already covered by the linux-aarch64 wheel above. We build manylinux only
-  # (Raspberry Pi OS is glibc); musllinux armv7l is niche and doubles the slow
-  # emulated build, so it is skipped here.
+  # already covered by the linux-aarch64 wheel above.
+  #
+  # Raspberry Pi OS is glibc/Debian, so we want the manylinux_2_31 (Debian-based)
+  # armv7l image. For armv7l, cibuildwheel only auto-builds the *musllinux* wheel
+  # unless the manylinux image is named, so we set CIBW_MANYLINUX_ARMV7L_IMAGE
+  # and skip musllinux (the musl/Alpine 32-bit-ARM wheel is niche and would
+  # double this slow emulated build).
   linux-armv7l:
     name: Wheels linux-armv7l (emulated)
     runs-on: ubuntu-latest
@@ -84,9 +88,10 @@ jobs:
         with:
           platforms: arm
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21
+        uses: pypa/cibuildwheel@v2.23.4
         env:
           CIBW_ARCHS: armv7l
+          CIBW_MANYLINUX_ARMV7L_IMAGE: manylinux_2_31
           CIBW_SKIP: "*-musllinux*"
       - uses: actions/upload-artifact@v4
         with:
@@ -107,7 +112,7 @@ jobs:
       - name: Fetch & verify SQLite amalgamation
         run: python scripts/fetch_sqlite.py
       - name: Build Pyodide wheel
-        uses: pypa/cibuildwheel@v2.21
+        uses: pypa/cibuildwheel@v2.23.4
         env:
           CIBW_PLATFORM: pyodide
           CIBW_TEST_COMMAND: "python -m pytest {project}/tests"
